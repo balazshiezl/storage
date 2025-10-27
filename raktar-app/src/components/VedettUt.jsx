@@ -1,0 +1,6 @@
+import { Navigate } from 'react-router-dom'
+export default function VedettUt({ children }) {
+  const token = localStorage.getItem('jwt_token')
+  if (!token) return <Navigate to="/login" replace />
+  return children
+}
