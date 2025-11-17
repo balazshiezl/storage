@@ -1,5 +1,6 @@
 import { DataTypes, Model } from 'sequelize'
 import sequelize from '../db/index.js'
+import Warehouse from './Warehouse.js' // <-- EZ KELL
 
 class InventoryItem extends Model {}
 
@@ -18,6 +19,7 @@ InventoryItem.init(
     location: { type: DataTypes.TEXT },
     created_by: { type: DataTypes.INTEGER },
     updated_by: { type: DataTypes.INTEGER },
+    warehouse_id: { type: DataTypes.INTEGER, allowNull: false },
   },
   {
     sequelize,
@@ -27,5 +29,9 @@ InventoryItem.init(
     underscored: true,
   }
 )
+
+// Kapcsolat
+InventoryItem.belongsTo(Warehouse, { foreignKey: 'warehouse_id' })
+Warehouse.hasMany(InventoryItem, { foreignKey: 'warehouse_id' })
 
 export default InventoryItem

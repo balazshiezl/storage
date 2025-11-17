@@ -1,3 +1,4 @@
+// src/routes/inventoryRoutes.js
 import { Router } from 'express'
 import { Op } from 'sequelize'
 import dayjs from 'dayjs'
@@ -7,11 +8,29 @@ import { upload } from '../middleware/upload.js'
 
 const router = Router()
 
+function getWarehouseId(req) {
+  // Elsődleges: header (stabil minden HTTP metódus alatt)
+  const fromHeader = req.headers?.['x-warehouse-id']
+
+  // Tartalék: query vagy body (ha mégis így küldöd)
+  const fromQuery = req.query?.warehouseId
+  const fromBody  = req.body?.warehouseId
+
+  const raw = fromHeader ?? fromQuery ?? fromBody
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+
 // LISTA + keresés/szűrés + lapozás
 router.get('/', authKotelezett, async (req, res) => {
   try {
+    const warehouseId = getWarehouseId(req)
+    if (!warehouseId) return res.status(400).json({ uzenet: 'warehouseId hiányzik' })
+
     const { q, category, exp_before, page = 1, limit = 12 } = req.query
-    const where = {}
+    const where = { warehouse_id: warehouseId }
+
     if (q) {
       where[Op.or] = [
         { name: { [Op.iLike]: `%${q}%` } },
@@ -31,18 +50,28 @@ router.get('/', authKotelezett, async (req, res) => {
       limit: Number(limit),
     })
 
-    res.json({ items: rows, total: count, page: Number(page), pages: Math.ceil(count / Number(limit)) })
+    res.json({
+      items: rows,
+      total: count,
+      page: Number(page),
+      pages: Math.ceil(count / Number(limit)),
+    })
   } catch (e) {
     console.error(e)
     res.status(500).json({ uzenet: 'Szerverhiba a lista lekérésekor' })
   }
 })
 
-// EGY TÉTEL
+// EGY TÉTEL (csak a saját raktárból engedjük)
 router.get('/:id', authKotelezett, async (req, res) => {
   try {
+    const warehouseId = getWarehouseId(req)
+    if (!warehouseId) return res.status(400).json({ uzenet: 'warehouseId hiányzik' })
+
     const item = await InventoryItem.findByPk(req.params.id)
-    if (!item) return res.status(404).json({ uzenet: 'Nem található' })
+    if (!item || item.warehouse_id !== warehouseId) {
+      return res.status(404).json({ uzenet: 'Nem található' })
+    }
     res.json(item)
   } catch (e) {
     console.error(e)
@@ -53,6 +82,9 @@ router.get('/:id', authKotelezett, async (req, res) => {
 // LÉTREHOZÁS (kép opcionális, form-data)
 router.post('/', authKotelezett, upload.single('image'), async (req, res) => {
   try {
+    const warehouseId = getWarehouseId(req)
+    if (!warehouseId) return res.status(400).json({ uzenet: 'warehouseId hiányzik' })
+
     const {
       name, description, category, quantity, unit, min_quantity,
       expiration_date, manufacture_date, location,
@@ -71,6 +103,7 @@ router.post('/', authKotelezett, upload.single('image'), async (req, res) => {
       manufacture_date: manufacture_date || null,
       image_path,
       location,
+      warehouse_id: warehouseId,              // ⬅ kötelező
       created_by: req.felhasznalo.id,
       updated_by: req.felhasznalo.id,
       updated_at: dayjs().toDate(),
@@ -82,16 +115,25 @@ router.post('/', authKotelezett, upload.single('image'), async (req, res) => {
   }
 })
 
-// MÓDOSÍTÁS (kép cseréje opcionális)
+// MÓDOSÍTÁS (kép cseréje opcionális) – csak saját raktárban
 router.put('/:id', authKotelezett, upload.single('image'), async (req, res) => {
   try {
+    const warehouseId = getWarehouseId(req)
+    if (!warehouseId) return res.status(400).json({ uzenet: 'warehouseId hiányzik' })
+
     const item = await InventoryItem.findByPk(req.params.id)
-    if (!item) return res.status(404).json({ uzenet: 'Nem található' })
+    if (!item || item.warehouse_id !== warehouseId) {
+      return res.status(404).json({ uzenet: 'Nem található' })
+    }
 
     const patch = { ...req.body }
     if (patch.quantity !== undefined) patch.quantity = Number(patch.quantity)
     if (patch.min_quantity !== undefined) patch.min_quantity = Number(patch.min_quantity)
     if (req.file) patch.image_path = `/uploads/${req.file.filename}`
+
+    // Biztonság: ne lehessen átrakni másik raktárba
+    delete patch.warehouse_id
+    delete patch.warehouseId
 
     patch.updated_by = req.felhasznalo.id
     patch.updated_at = dayjs().toDate()
@@ -104,12 +146,17 @@ router.put('/:id', authKotelezett, upload.single('image'), async (req, res) => {
   }
 })
 
-// DARABSZÁM NÖVELÉS/CSÖKKENTÉS
+// DARABSZÁM NÖVELÉS/CSÖKKENTÉS – csak saját raktárban
 router.patch('/:id/increment', authKotelezett, async (req, res) => {
   try {
+    const warehouseId = getWarehouseId(req)
+    if (!warehouseId) return res.status(400).json({ uzenet: 'warehouseId hiányzik' })
+
     const { amount } = req.body // lehet negatív is
     const item = await InventoryItem.findByPk(req.params.id)
-    if (!item) return res.status(404).json({ uzenet: 'Nem található' })
+    if (!item || item.warehouse_id !== warehouseId) {
+      return res.status(404).json({ uzenet: 'Nem található' })
+    }
 
     const ujMenny = (item.quantity || 0) + Number(amount || 0)
     await item.update({
@@ -124,11 +171,16 @@ router.patch('/:id/increment', authKotelezett, async (req, res) => {
   }
 })
 
-// TÖRLÉS
+// TÖRLÉS – csak saját raktárban
 router.delete('/:id', authKotelezett, async (req, res) => {
   try {
+    const warehouseId = getWarehouseId(req)
+    if (!warehouseId) return res.status(400).json({ uzenet: 'warehouseId hiányzik' })
+
     const item = await InventoryItem.findByPk(req.params.id)
-    if (!item) return res.status(404).json({ uzenet: 'Nem található' })
+    if (!item || item.warehouse_id !== warehouseId) {
+      return res.status(404).json({ uzenet: 'Nem található' })
+    }
     await item.destroy()
     res.json({ uzenet: 'Törölve' })
   } catch (e) {

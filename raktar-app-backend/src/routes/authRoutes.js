@@ -12,7 +12,7 @@ router.get('/me', async (req, res) => {
     const auth = req.headers.authorization || ''
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
     if (!token) return res.status(401).json({ uzenet: 'Hiányzó token' })
-    const payload = jwt.verify(token, process.env.JWT_TITKOS)
+    const payload = jwt.verify(token, process.env.JWT_SECRET)
     const user = await User.findByPk(payload.id, {
       attributes: ['id','email','nev','szerep']
     })
@@ -65,7 +65,7 @@ router.post('/login', async (req, res) => {
     const ok = await bcrypt.compare(jelszo, user.jelszo_hash)
     if (!ok) return res.status(401).json({ uzenet: 'Hibás email vagy jelszó' })
 
-    const token = jwt.sign({ id: user.id, email: user.email, szerep: user.szerep }, process.env.JWT_TITKOS, { expiresIn: '1d' })
+    const token = jwt.sign({ id: user.id, email: user.email, szerep: user.szerep }, process.env.JWT_SECRET, { expiresIn: '1d' })
     res.json({ token, felhasznalo: { id: user.id, email: user.email, nev: user.nev, szerep: user.szerep } })
   } catch (e) {
     console.error(e)

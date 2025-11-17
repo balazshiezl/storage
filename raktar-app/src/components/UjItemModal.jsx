@@ -1,11 +1,18 @@
+// src/components/UjItemModal.jsx
 import { useState, useRef } from 'react'
 import { letrehozItem } from '../services/inventoryService'
 
 export default function UjItemModal({ nyitva, bezar, onCreated }) {
   const [form, setForm] = useState({
-    name: '', description: '', category: '',
-    quantity: 0, unit: 'db', min_quantity: 0,
-    expiration_date: '', manufacture_date: '', location: '',
+    name: '',
+    description: '',
+    category: '',
+    quantity: 0,
+    unit: 'db',
+    min_quantity: 0,
+    expiration_date: '',
+    manufacture_date: '',
+    location: '',
   })
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState('')
@@ -14,7 +21,9 @@ export default function UjItemModal({ nyitva, bezar, onCreated }) {
 
   if (!nyitva) return null
 
-  function valtoztat(k, v) { setForm(p => ({ ...p, [k]: v })) }
+  function valtoztat(k, v) {
+    setForm(p => ({ ...p, [k]: v }))
+  }
 
   function onPick(e) {
     const f = e.target.files?.[0]
@@ -34,12 +43,29 @@ export default function UjItemModal({ nyitva, bezar, onCreated }) {
   async function kuldes(e) {
     e.preventDefault()
     setHiba('')
+
+    const wid = localStorage.getItem('warehouseId')
+    if (!wid) {
+      setHiba('Előbb válassz vagy hozz létre egy raktárt.')
+      return
+    }
+
     try {
-      await letrehozItem({ ...form, image: file || undefined })
+      await letrehozItem({
+        ...form,
+        // biztos, ami biztos: számmezők számmá alakítása
+        quantity: Number(form.quantity) || 0,
+        min_quantity: Number(form.min_quantity) || 0,
+        image: file || undefined,
+        warehouseId: wid,
+      })
       onCreated?.()
       bezar()
+      // ürítés opcionálisan:
+      // setForm({ ...form, name:'', description:'', category:'', quantity:0, unit:'db', min_quantity:0, expiration_date:'', manufacture_date:'', location:'' })
+      // setFile(null); setPreview('')
     } catch (err) {
-      setHiba(err.response?.data?.uzenet || 'Mentési hiba')
+      setHiba(err?.response?.data?.uzenet || err?.response?.data?.message || 'Mentési hiba')
     }
   }
 
@@ -53,65 +79,118 @@ export default function UjItemModal({ nyitva, bezar, onCreated }) {
 
         <form onSubmit={kuldes} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="text-sm">Név
-            <input className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                   required value={form.name} onChange={e=>valtoztat('name', e.target.value)} />
+            <input
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              required
+              value={form.name}
+              onChange={e => valtoztat('name', e.target.value)}
+            />
           </label>
+
           <label className="text-sm">Kategória
-            <input className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                   value={form.category} onChange={e=>valtoztat('category', e.target.value)} />
+            <input
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              value={form.category}
+              onChange={e => valtoztat('category', e.target.value)}
+            />
           </label>
+
           <label className="text-sm">Darabszám
-            <input type="number" className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                   value={form.quantity} onChange={e=>valtoztat('quantity', e.target.value)} />
+            <input
+              type="number"
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              value={form.quantity}
+              onChange={e => valtoztat('quantity', e.target.value)}
+            />
           </label>
+
           <label className="text-sm">Egység
-            <input className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                   value={form.unit} onChange={e=>valtoztat('unit', e.target.value)} />
+            <input
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              value={form.unit}
+              onChange={e => valtoztat('unit', e.target.value)}
+            />
           </label>
+
           <label className="text-sm">Minimum készlet
-            <input type="number" className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                   value={form.min_quantity} onChange={e=>valtoztat('min_quantity', e.target.value)} />
+            <input
+              type="number"
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              value={form.min_quantity}
+              onChange={e => valtoztat('min_quantity', e.target.value)}
+            />
           </label>
+
           <label className="text-sm">Hely
-            <input className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                   value={form.location} onChange={e=>valtoztat('location', e.target.value)} />
+            <input
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              value={form.location}
+              onChange={e => valtoztat('location', e.target.value)}
+            />
           </label>
+
           <label className="text-sm">Lejárati dátum
-            <input type="date" className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                   value={form.expiration_date} onChange={e=>valtoztat('expiration_date', e.target.value)} />
+            <input
+              type="date"
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              value={form.expiration_date}
+              onChange={e => valtoztat('expiration_date', e.target.value)}
+            />
           </label>
+
           <label className="text-sm">Gyártási dátum
-            <input type="date" className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                   value={form.manufacture_date} onChange={e=>valtoztat('manufacture_date', e.target.value)} />
+            <input
+              type="date"
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              value={form.manufacture_date}
+              onChange={e => valtoztat('manufacture_date', e.target.value)}
+            />
           </label>
+
           <label className="md:col-span-2 text-sm">Leírás
-            <textarea className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
-                      rows={3} value={form.description}
-                      onChange={e=>valtoztat('description', e.target.value)} />
+            <textarea
+              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              rows={3}
+              value={form.description}
+              onChange={e => valtoztat('description', e.target.value)}
+            />
           </label>
 
           {/* Drag & drop zóna + előnézet */}
           <div
             className="md:col-span-2 rounded-xl border border-dashed border-white/20 bg-white/5 p-4 text-center"
-            onDragOver={(e)=>e.preventDefault()}
+            onDragOver={(e) => e.preventDefault()}
             onDrop={onDrop}
           >
             {preview ? (
-              <img src={preview} alt="Előnézet"
-                   className="mx-auto h-40 object-contain rounded-lg border border-white/10" />
+              <img
+                src={preview}
+                alt="Előnézet"
+                className="mx-auto h-40 object-contain rounded-lg border border-white/10"
+              />
             ) : (
               <p className="text-neutral-300">
                 Húzd ide a képet, vagy{' '}
-                <button type="button" className="text-indigo-300 underline"
-                        onClick={()=>inputRef.current?.click()}>
+                <button
+                  type="button"
+                  className="text-indigo-300 underline"
+                  onClick={() => inputRef.current?.click()}
+                >
                   válaszd ki
                 </button>.
               </p>
             )}
-            <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onPick}
+            />
           </div>
 
           {hiba && <p className="md:col-span-2 text-rose-300">{hiba}</p>}
+
           <div className="md:col-span-2 flex justify-end gap-2">
             <button type="button" onClick={bezar} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">Mégse</button>
             <button type="submit" className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white">Mentés</button>
